@@ -1,8 +1,11 @@
+#!/usr/bin/env python3
+
+import sys
+import random
+from configparser import ConfigParser
+
 from twisted.words.protocols.irc import IRCClient
 from twisted.internet import reactor, protocol
-import random
-import sys
-from ConfigParser import ConfigParser
 
 
 class cardbotUser:
@@ -39,24 +42,24 @@ class cardbot(object):
                 self.initialiseDeck(self.factory.mainchannel)
 
             def userJoined(self, user, channel):
-                print "join: %s to %s" % (user, channel)
+                print("join: %s to %s" % (user, channel))
 
             def userLeft(self, user, channel):
-                print "part: %s from %s" % (user, channel)
+                print("part: %s from %s" % (user, channel))
 
             def userRename(self, oldname, newname):
-                print "nickchange: %s to %s" % (oldname, newname)
+                print("nickchange: %s to %s" % (oldname, newname))
                 player = getPlayer(oldname)
                 if player is not None:
                     player.setName(newname)
 
             def kickedFrom(self, channel, kicker, msg):
-                print "%s kicked me from %s (%s)" % (kicker, channel, msg)
+                print("%s kicked me from %s (%s)" % (kicker, channel, msg))
 
             def privmsg(self, user, channel, msg):
                 user = self.factory.getUserInfo(user)
                 sender = user.name()
-                print "<%s> %s" % (user.name(), msg)
+                print("<%s:%s> %s" % (user.name(), channel, msg))
 
                 mlc = msg.lower()
 
@@ -150,7 +153,7 @@ class cardbot(object):
 
             def action(self, user, channel, msg):
                 user = self.factory.getUserInfo(user)
-                print "* %s %s" % (user.name(), msg)
+                print("* %s %s" % (user.name(), msg))
 
             def noticed(self, user, channel, msg):
                 pass
@@ -226,7 +229,7 @@ class cardbot(object):
                             p.getName(),
                             "You have been dealt the " + c.toString(),
                         )
-                    except Exception, e:
+                    except Exception as e:
                         raise EmptyDeckError()
 
             def dealTo(self, p, numcards, channel):
@@ -242,7 +245,7 @@ class cardbot(object):
                         + " cards have been dealt to "
                         + p.getName(),
                     )
-                except EmptyDeckError, e:
+                except EmptyDeckError as e:
                     self.msg(
                         channel,
                         "The pack has run out of cards. "
@@ -355,7 +358,7 @@ class cardbot(object):
                 try:
                     c = card(value, suit)
                     return c
-                except ValueError, e:
+                except ValueError as e:
                     return None
 
             def giveback(self, name, channel):
