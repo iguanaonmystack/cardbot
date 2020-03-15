@@ -109,7 +109,7 @@ class Player:
         self.name = name
         self.game = game
         self.game.players.append(self)
-        self.hand = []
+        self.hand = Pile(open_play=True)
 
     def take(self, count=1, from_=None, from_index=-1):
         if from_ is None:
@@ -123,6 +123,9 @@ class Player:
         self.game.in_play.extend(cards)
         for i in reversed(sorted(idxs)):
             self.hand.pop(i)
+
+    def __str__(self):
+        return str(self.name)
 
 
 class Game:
@@ -157,6 +160,12 @@ class Game:
         with open(os.path.join(dirname, filename), 'w') as f:
             for card in pile:
                 print(str(card), file=f)
+
+    def get_player(self, name):
+        assert isinstance(name, str)
+        for player in self.players:
+            if player.name == name:
+                return player
 
 
 def run_test_game():

@@ -4,11 +4,10 @@ import sys
 import random
 from configparser import ConfigParser
 
-from twisted.words.protocols.irc import IRCClient
 from twisted.internet import reactor, protocol
 
 import game
-
+import namesircclient
 
 class CardbotUser:
     def __init__(self, nick, ident, realname):
@@ -28,16 +27,17 @@ class CardbotUser:
                 and self.realname == other.realname)
 
 
-class Cardbot(IRCClient):
+class Cardbot(namesircclient.NamesIRCClient):
 
     def __init__(self, dealer, mainchannel):
+        super().__init__()
         self.nickname = "TrainGame"
         self.realname = "this code works??"
         self.dealer = dealer
         self.mainchannel = mainchannel
         self.players = []
         self.helpURL = "http://example.com/projects/cardbot.shtml"
-        self.game = game.Game()
+        self.game = None
         self.users = []
 
     def signedOn(self):
@@ -90,7 +90,8 @@ class Cardbot(IRCClient):
             print(params, command)
 
             command_function = {
-                'show': self.display_hand,
+                'hand': self.display_hand,
+                'show': self.show_pile,
             }.get(command, self.unknown_command)
             command_function(params, user, user.nick)
 
@@ -111,22 +112,106 @@ class Cardbot(IRCClient):
                 command = ''
 
             command_function = {
-                'reset': self.reset_game,
+                'new': self.new_game,
+                'hand': self.display_hand,
+                'take': self.take_cards,
+                'pick': self.pick_card,
+                'show': self.show_pile,
+                'debug': self.enable_debug,
             }.get(command, self.unknown_command)
             command_function(params, user, channel)
 
     def unknown_command(self, params, sender, destination):
-        print (params, sender, destination)
+        print(params, sender, destination)
         self.msg(destination, "Unknown command from %s: %r" % (sender, params))
 
+    def enable_debug(self, params, sender, destination):
+        print("Starting debugger; connect with: "
+              "python3 -c 'import epdb; epdb.connect()'")
+        import epdb
+        epdb.serve()
+
+    def new_game(self, params, sender, destination):
+        self.game = game.Game()
+        self.game.load('default')
+        random.shuffle(self.game.deck)
+        self.game.buffer.fill_from(self.game.deck)
+        self.names(self.mainchannel).addCallback(self._got_names_for_new_game(destination))
+
+    def _got_names_for_new_game(self, destination):
+        def _internal(nicklist):
+            for nick in nicklist:
+                if not nick or nick.lower() == self.nickname.lower():
+                    continue
+                while nick.startswith("@"):
+                    nick = nick[1:]
+                game.Player(nick, self.game)
+            self.msg(destination,
+                     "New game with %s" % (
+                         ', '.join(str(p) for p in self.game.players)))
+        return _internal
+
     def display_hand(self, params, sender, destination):
-        self.msg(destination, "Display hand")
+        player = self.game.get_player(sender.nick)
+        hand = player.hand
+        self.msg(destination, "%s hand: %s" % (player, hand))
 
-    def reset_game(self, params, sender, destination):
-        self.msg(destination, "resetting")
+    def show_pile(self, params, sender, destination):
+        player = self.game.get_player(sender.nick)
+        piles = {'deck': self.game.deck,
+                 'buffer': self.game.buffer}
+        pile = piles[params[1]]
+        self.msg(destination, '%s: %s' % (params[1], pile))
 
-    def console(self, params, sender, destination):
-        pass # TODO - fork a console
+    def pick_card(self, params, sender, destination):
+        '''"pick [position] [from buffer]"'''
+        piles = {'buffer': self.game.buffer}
+        pile = 'buffer'
+        try:
+            from_pos = params.index('from')
+        except ValueError:
+            from_pos = None
+        if not from_pos:
+            # command must be 'pick [position]'
+            if len(params) == 2:
+                position = int(params[1])
+            else:
+                position = 1
+        else:
+            # command is 'pick [count] from [pile]'
+            assert len(params) == 4
+            position = int(params[1])
+            pile = piles[params[3]]
+        player = self.game.get_player(sender.nick)
+        player.take(1, piles[pile], position)
+        self.msg(destination, "%s picked a card from %s" % (player, pile))
+        self.game.buffer.fill_from(self.game.deck)
+        self.msg(destination, "Replenished %s: %s" % (pile, self.game.buffer))
+        self.msg(player, "New hand: %s" % (player.hand,))
+
+    def take_cards(self, params, sender, destination):
+        '''"take [count] [from deck]"'''
+        piles = {'deck': self.game.deck}
+        pile = 'deck'
+        try:
+            from_pos = params.index('from')
+        except ValueError:
+            from_pos = None
+        if not from_pos:
+            # command must be 'take [count]'
+            if len(params) == 2:
+                count = int(params[1])
+            else:
+                count = 1
+        else:
+            # command is 'take [count] from [pile]'
+            assert len(params) == 4
+            count = int(params[1])
+            pile = piles[params[3]]
+        player = self.game.get_player(sender.nick)
+        player.take(count, piles[pile], -1)
+        self.msg(destination, "%s took %s from %s" % (player, count, pile))
+        self.msg(player, "New hand: %s" % (player.hand,))
 
 
 class CardbotFactory(protocol.ClientFactory):
