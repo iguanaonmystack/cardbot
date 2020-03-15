@@ -1,0 +1,55 @@
+
+ [DECK]
+ |  |
+ |  v
+ |  [BUFFER] ---------------
+ |  |   |  ^                \ 
+ |  |   v  |                 |
+ |  |   [PEEK]               |
+ |  |                        |
+ |  |   [IN_PLAY]            |
+ |  |   ^  |    |            |
+ v  v   |  v    |            |
+[PLAYER.HAND]   |            |
+       \        |            |
+        \       v           / 
+         >   [DISCARD]  <---
+                |
+                v
+                [DECK]
+
+
+ * TrainGame has joined
+ * Iguana has joined
+ * Tiger has joined
+Iguana: reset
+TrainGame: new game with Iguana, Tiger
+Iguana: take 5
+Tiger: take 5
+[Iguana PM]: hand
+[TrainGame PM]: hand: LOCO PINK PINK LOCO RED
+Iguana: fill buffer
+TrainGame: buffer: RED RED ORANGE LOCO GREEN
+Iguana: take buffer 1
+Iguana: fill buffer
+TrainGame: buffer: BLUE RED ORANGE LOCO GREEN
+Iguana: take buffer 4
+Iguana: fill buffer
+[Tiger PM]: hand
+[TrainGame PM]: hand: LOCO LOCO LOCO LOCO LOCO
+# Tiger attemps to tunnel a three-train
+Tiger: play 1 2 3
+TrainGame: in play: LOCO (Tiger) LOCO (Tiger) LOCO (Tiger)
+Tiger: peek
+TrainGame: peek: RED
+Tiger: peek
+TrainGame: peek: RED GREEN
+Tiger: peek
+TrainGame: peek: RED GREEN RED
+Tiger: discard peek
+TrainGame: three cards discarded from peek
+Tiger: discard play / take play # depending on whether the tunnel attempt worked.
+Iguana: play 1 4 5
+TrainGame: in play: LOCO LOCO RED
+Iguana: discard play
+# etc
