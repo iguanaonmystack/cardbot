@@ -1,7 +1,7 @@
-import random
 import os
+import re
 import shutil
-
+import random
 
 class Card:
     def __init__(self, name):
@@ -18,6 +18,10 @@ class Card:
 class PileEmptyError(Exception):
     '''Raised when trying to pop from an empty pile'''
     pass
+
+
+class NotAPlayerError(ValueError):
+    '''Raised when get_player finds no matching player.'''
 
 
 class Pile(list):
@@ -87,7 +91,6 @@ class Buffer(Pile):
         for i in range(len(self)):
             if self[i] is None:
                 card = from_.pop()
-                print(card)
                 self[i] = card
 
     def pop(self, idx=-1):
@@ -130,6 +133,7 @@ class Player:
 
 class Game:
     def __init__(self):
+        self.savedir = 'state'
         self.discard = Pile(open_play=True)
         self.deck = Pile(auto_replenish_from=self.discard)
         self.buffer = Buffer(open_play=True, size=5, discard_to=self.discard)
@@ -137,15 +141,25 @@ class Game:
         self.in_play = Pile(open_play=True, discard_to=self.discard)
         self.players = []
 
-    def load(self, dirname):
-        # XXX untrusted filename!!
+    def valid_gamename(self, gamename):
+        # must be a valid, secure directory name
+        return re.match(r'^[a-zA-Z0-9-_]+$', gamename)
+
+    def load(self, gamename):
+        if not self.valid_gamename(gamename):
+            raise ValueError('Invalid game name: %r' % (gamename,))
+        dirname = os.path.join(self.savedir, gamename)
         with open(os.path.join(dirname, 'deck.txt')) as f:
             cards = [line.strip() for line in f]
+        # TODO - other piles
         self.deck.load(cards)
 
-    def save(self, dirname):
-        # XXX untrusted filename!!
-        os.mkdir(dirname)
+    def save(self, gamename):
+        if not self.valid_gamename(gamename):
+            raise ValueError('Invalid game name: %r' % (gamename,))
+        dirname = os.path.join(self.savedir, gamename)
+        if not os.path.exists(dirname):
+            os.makedirs(dirname)
         for pile, filename in (
                 (self.discard, 'discard.txt'),
                 (self.deck, 'deck.txt'),
@@ -154,7 +168,8 @@ class Game:
                 (self.in_play, 'in_play.txt')):
             self._save_pile(pile, dirname, filename)
         for player in self.players:
-            self._save_pile(player.hand, dirname, 'player_%s_hand.txt' % player.name)
+            self._save_pile(
+                player.hand, dirname, 'player_%s_hand.txt' % player.name)
         
     def _save_pile(self, pile, dirname, filename):
         with open(os.path.join(dirname, filename), 'w') as f:
@@ -166,6 +181,7 @@ class Game:
         for player in self.players:
             if player.name == name:
                 return player
+        raise NotAPlayerError()
 
 
 def run_test_game():

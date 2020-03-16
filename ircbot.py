@@ -9,7 +9,7 @@ from twisted.internet import reactor, protocol
 import game
 import namesircclient
 
-class CardbotUser:
+class IRCUser:
     def __init__(self, nick, ident, realname):
         self.nick = nick
         self.ident = ident
@@ -52,15 +52,17 @@ class Cardbot(namesircclient.NamesIRCClient):
 
     def userRename(self, oldname, newname):
         print("nickchange: %s to %s" % (oldname, newname))
-        player = self.getPlayer(oldname)
-        if player is not None:
-            player.setName(newname)
+        try:
+            player = self.game.get_player(oldname)
+        except game.NotAPlayerError:
+            return
+        player.name = newname
 
     def kickedFrom(self, channel, kicker, msg):
         print("%s kicked me from %s (%s)" % (kicker, channel, msg))
 
     def action(self, user, channel, msg):
-        user = self.factory.getUserInfo(user)
+        user = self.getUser(user)
         print("* %s %s" % (user.nick, msg))
 
     def noticed(self, user, channel, msg):
@@ -69,7 +71,7 @@ class Cardbot(namesircclient.NamesIRCClient):
     def getUser(self, ircuser):
         username, ident_realname = ircuser.split('!', 1)
         ident, realname = ident_realname.split('@', 1)
-        user = CardbotUser(username, ident, realname)
+        user = IRCUser(username, ident, realname)
         for existing_user in self.users:
             if user == existing_user:
                 return existing_user
@@ -91,6 +93,8 @@ class Cardbot(namesircclient.NamesIRCClient):
 
             command_function = {
                 'hand': self.display_hand,
+                'play': self.play_cards,
+                'unplay': self.unplay,
                 'show': self.show_pile,
             }.get(command, self.unknown_command)
             command_function(params, user, user.nick)
@@ -116,6 +120,10 @@ class Cardbot(namesircclient.NamesIRCClient):
                 'hand': self.display_hand,
                 'take': self.take_cards,
                 'pick': self.pick_card,
+                'play': self.play_cards,
+                'unplay': self.unplay,
+                'discard': self.discard,
+                'peek': self.peek,
                 'show': self.show_pile,
                 'debug': self.enable_debug,
             }.get(command, self.unknown_command)
@@ -159,9 +167,19 @@ class Cardbot(namesircclient.NamesIRCClient):
     def show_pile(self, params, sender, destination):
         player = self.game.get_player(sender.nick)
         piles = {'deck': self.game.deck,
+                 'play': self.game.in_play,
+                 'peek': self.game.peek,
+                 'discard': self.game.discard,
                  'buffer': self.game.buffer}
-        pile = piles[params[1]]
-        self.msg(destination, '%s: %s' % (params[1], pile))
+        try:
+            if len(params) > 1:
+                pile = piles[params[1]]
+            else:
+                raise ValueError()
+        except (ValueError, KeyError):
+            self.msg(destination, 'Available piles: %s' % (
+                ', '.join(piles.keys())))
+        self.msg(destination, '%s: %s' % (params[1].title(), pile))
 
     def pick_card(self, params, sender, destination):
         '''"pick [position] [from buffer]"'''
@@ -210,17 +228,55 @@ class Cardbot(namesircclient.NamesIRCClient):
             pile = piles[params[3]]
         player = self.game.get_player(sender.nick)
         player.take(count, piles[pile], -1)
-        self.msg(destination, "%s took %s from %s" % (player, count, pile))
+        self.msg(self.mainchannel,
+                 "%s took %s from %s" % (player, count, pile))
         self.msg(player, "New hand: %s" % (player.hand,))
+
+    def play_cards(self, params, sender, destination):
+        '''"play [pos] [[pos] ...]"'''
+        player = self.game.get_player(sender.nick)
+        positions = [int(pos) for pos in params[1:]]
+        player.play(*positions)
+        self.msg(self.mainchannel, "In play: %s" % (self.game.in_play))
+        self.msg(self.mainchannel, "(unplay or discard to remove from play)")
+        self.msg(player, "New hand: %s" % (player.hand,))
+
+    def unplay(self, params, sender, destination):
+        player = self.game.get_player(sender.nick)
+        player.take(len(self.game.in_play), self.game.in_play)
+        self.msg(self.mainchannel, "%s takes back cards in play" % (player,))
+        self.msg(player, "New hand: %s" % (player.hand,))
+
+    def discard(self, params, sender, destination):
+        '''"discard [pilename]" -- discard cards in a pile'''
+        player = self.game.get_player(sender.nick)
+        piles = {'play': self.game.in_play, 'peek': self.game.peek}
+        if len(params) > 1:
+            pilename = params[1]
+        else:
+            pilename = 'play'
+        if pilename not in piles:
+            self.msg(destination, 'Unknown pile: %s' % pilename)
+        piles[pilename].discard()
+        self.msg(self.mainchannel, "Discarded cards in %s" % pilename)
+
+    def peek(self, params, sender, destination):
+        '''"peek [count]" -- draw cards from deck into peek pile'''
+        player = self.game.get_player(sender.nick)
+        count = 1
+        if len(params) > 1:
+            count = int(params[1])
+        self.game.peek.take_from(self.game.deck, count)
+        self.msg(self.mainchannel, "Peek: %s" % (self.game.peek,))
 
 
 class CardbotFactory(protocol.ClientFactory):
     def __init__(self, channel='#cardgame', dealer='Iguana'):
-        self.main_channel = channel
+        self.mainchannel = channel
         self.original_dealer = dealer
 
     def buildProtocol(self, addr):
-        protocol = Cardbot(self.original_dealer, self.main_channel)
+        protocol = Cardbot(self.original_dealer, self.mainchannel)
         protocol.factory = self
         return protocol
 
