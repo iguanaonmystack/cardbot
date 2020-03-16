@@ -39,6 +39,7 @@ class Cardbot(namesircclient.NamesIRCClient):
         self.helpURL = "http://example.com/projects/cardbot.shtml"
         self.game = None
         self.users = []
+        self.require_mention = True
 
     def signedOn(self):
         self.mode(self.nickname, False, "x")
@@ -105,11 +106,13 @@ class Cardbot(namesircclient.NamesIRCClient):
             if params[0] != self.nickname.lower() \
                     and params[0][:-1] != self.nickname.lower():
                 # not addressed to me
-                return
-            try:
-                params = params[1:]
-            except IndexError:
-                params = []
+                if self.require_mention:
+                    return
+            else:
+                try:
+                    params = params[1:]
+                except IndexError:
+                    params = []
             try:
                 command = params[0]
             except IndexError:
@@ -125,6 +128,8 @@ class Cardbot(namesircclient.NamesIRCClient):
                 'discard': self.discard,
                 'peek': self.peek,
                 'show': self.show_pile,
+                'save': self.save_game,
+                'load': self.load_game,
                 'debug': self.enable_debug,
             }.get(command, self.unknown_command)
             command_function(params, user, channel)
@@ -143,6 +148,7 @@ class Cardbot(namesircclient.NamesIRCClient):
         self.game = game.Game()
         self.game.load('default')
         random.shuffle(self.game.deck)
+        random.shuffle(self.game.tickets)
         self.game.buffer.fill_from(self.game.deck)
         self.names(self.mainchannel).addCallback(self._got_names_for_new_game(destination))
 
@@ -159,6 +165,13 @@ class Cardbot(namesircclient.NamesIRCClient):
                          ', '.join(str(p) for p in self.game.players)))
         return _internal
 
+    def load_game(self, params, sender, destination):
+        self.game = game.Game()
+        self.game.load(params[1])
+
+    def save_game(self, params, sender, destination):
+        self.game.save(params[1])
+
     def display_hand(self, params, sender, destination):
         player = self.game.get_player(sender.nick)
         hand = player.hand
@@ -170,6 +183,9 @@ class Cardbot(namesircclient.NamesIRCClient):
                  'play': self.game.in_play,
                  'peek': self.game.peek,
                  'discard': self.game.discard,
+                 'tickets': self.game.tickets,
+                 'hand': player.hand,
+                 'mytickets': player.tickets,
                  'buffer': self.game.buffer}
         try:
             if len(params) > 1:
@@ -209,8 +225,12 @@ class Cardbot(namesircclient.NamesIRCClient):
 
     def take_cards(self, params, sender, destination):
         '''"take [count] [from deck]"'''
-        piles = {'deck': self.game.deck}
-        pile = 'deck'
+        player = self.game.get_player(sender.nick)
+        piles = {
+            'deck': self.game.deck,
+            'tickets': self.game.tickets
+        }
+        pilename = 'deck'
         try:
             from_pos = params.index('from')
         except ValueError:
@@ -225,12 +245,22 @@ class Cardbot(namesircclient.NamesIRCClient):
             # command is 'take [count] from [pile]'
             assert len(params) == 4
             count = int(params[1])
-            pile = piles[params[3]]
-        player = self.game.get_player(sender.nick)
-        player.take(count, piles[pile], -1)
+            pilename = params[3]
+
+        if pilename not in piles:
+            self.msg(destination, "Available piles: %s" % (
+                ', '.join(piles.keys())))
+            return
+        pile = piles[pilename]
+        if pile == self.game.tickets:
+            player.ticket(count)
+            hand_to_show = player.tickets
+        else:
+            player.take(count, pile, -1)
+            hand_to_show = player.hand
         self.msg(self.mainchannel,
                  "%s took %s from %s" % (player, count, pile))
-        self.msg(player, "New hand: %s" % (player.hand,))
+        self.msg(player, "New hand: %s" % (hand_to_show,))
 
     def play_cards(self, params, sender, destination):
         '''"play [pos] [[pos] ...]"'''
@@ -248,17 +278,35 @@ class Cardbot(namesircclient.NamesIRCClient):
         self.msg(player, "New hand: %s" % (player.hand,))
 
     def discard(self, params, sender, destination):
-        '''"discard [pilename]" -- discard cards in a pile'''
+        '''"discard [from] [pilename] [posn ...]" -- discard cards in a pile'''
         player = self.game.get_player(sender.nick)
-        piles = {'play': self.game.in_play, 'peek': self.game.peek}
+        piles = {
+            'play': self.game.in_play,
+            'peek': self.game.peek,
+            'mytickets': player.tickets}
         if len(params) > 1:
-            pilename = params[1]
+            if params[1] == 'from':
+                params.pop(1)
+            if len(params) > 1:
+                pilename = params[1]
         else:
             pilename = 'play'
+        if len(params) > 2:
+            positions = [int(posn) for posn in params[2:]]
         if pilename not in piles:
-            self.msg(destination, 'Unknown pile: %s' % pilename)
-        piles[pilename].discard()
-        self.msg(self.mainchannel, "Discarded cards in %s" % pilename)
+            self.msg(destination, 'Available piles: %s' % (
+                ', '.join(piles.keys())))
+        pile = piles[pilename]
+        if pile is player.tickets:
+            count = len(positions)
+            positions.sort(reverse=True)
+            for position in positions:
+                card = pile.pop(position)
+                self.game.old_tickets.append(card)
+        else:
+            count = pile.discard()
+        self.msg(self.mainchannel, "Discarded %s cards in %s" % (
+            count, pilename))
 
     def peek(self, params, sender, destination):
         '''"peek [count]" -- draw cards from deck into peek pile'''

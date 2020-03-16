@@ -1,5 +1,6 @@
 import os
 import re
+import glob
 import shutil
 import random
 
@@ -44,10 +45,11 @@ class Pile(list):
 
     def pop(self, idx=-1):
         if len(self) == 0 and self.auto_replenish_from:
-            print("shuffling and replenishing")
+            print("empty pile; shuffling discard and replenishing")
             random.shuffle(self.auto_replenish_from)
             self[:] = self.auto_replenish_from
             self.auto_replenish_from.clear()
+            print("pile filled with %s cards" % len(self))
         if len(self) == 0:
             raise PileEmptyError()
         return super().pop(idx)
@@ -77,7 +79,9 @@ class Pile(list):
 
     def discard(self):
         self.discard_to.extend(self)
+        count = len(self)
         self[:] = []
+        return count
 
 
 class Buffer(Pile):
@@ -113,6 +117,7 @@ class Player:
         self.game = game
         self.game.players.append(self)
         self.hand = Pile(open_play=True)
+        self.tickets = Pile(open_play=True)
 
     def take(self, count=1, from_=None, from_index=-1):
         if from_ is None:
@@ -120,6 +125,12 @@ class Player:
         for i in range(count):
             card = from_.pop(from_index)
             self.hand.append(card)
+
+    def ticket(self, count=1):
+        from_ = self.game.tickets
+        for i in range(count):
+            card = from_.pop()
+            self.tickets.append(card)
 
     def play(self, *idxs):
         cards = [self.hand[i] for i in idxs]
@@ -134,12 +145,23 @@ class Player:
 class Game:
     def __init__(self):
         self.savedir = 'state'
-        self.discard = Pile(open_play=True)
+        self.discard = Pile()
+        self.old_tickets = Pile()
         self.deck = Pile(auto_replenish_from=self.discard)
+        self.tickets = Pile(discard_to=self.old_tickets)
         self.buffer = Buffer(open_play=True, size=5, discard_to=self.discard)
         self.peek = Pile(open_play=True, discard_to=self.discard)
         self.in_play = Pile(open_play=True, discard_to=self.discard)
         self.players = []
+
+        self.filenames = (
+            (self.discard, 'discard.txt'),
+            (self.old_tickets, 'old_tickets.txt'),
+            (self.deck, 'deck.txt'),
+            (self.tickets, 'tickets.txt'),
+            (self.buffer, 'buffer.txt'),
+            (self.peek, 'peek.txt'),
+            (self.in_play, 'in_play.txt'))
 
     def valid_gamename(self, gamename):
         # must be a valid, secure directory name
@@ -149,10 +171,24 @@ class Game:
         if not self.valid_gamename(gamename):
             raise ValueError('Invalid game name: %r' % (gamename,))
         dirname = os.path.join(self.savedir, gamename)
-        with open(os.path.join(dirname, 'deck.txt')) as f:
+        for pile, filename in self.filenames:
+            if os.path.exists(os.path.join(dirname, filename)):
+                self._load_pile(pile, dirname, filename)
+        for player_pile in ('hand', 'tickets'):
+            filename_glob = "player_*_%s.txt" % (player_pile,)
+            for path in glob.glob(os.path.join(dirname, filename_glob)):
+                filename = os.path.split(path)[1]
+                playername = filename.split('_', 1)[1].rsplit('_', 1)[0]
+                try:
+                    player = self.get_player(playername)
+                except NotAPlayerError:
+                    player = Player(playername, self)
+                self._load_pile(getattr(player, player_pile), dirname, filename)
+
+    def _load_pile(self, pile, dirname, filename):
+        with open(os.path.join(dirname, filename)) as f:
             cards = [line.strip() for line in f]
-        # TODO - other piles
-        self.deck.load(cards)
+        pile.load(cards)
 
     def save(self, gamename):
         if not self.valid_gamename(gamename):
@@ -160,16 +196,12 @@ class Game:
         dirname = os.path.join(self.savedir, gamename)
         if not os.path.exists(dirname):
             os.makedirs(dirname)
-        for pile, filename in (
-                (self.discard, 'discard.txt'),
-                (self.deck, 'deck.txt'),
-                (self.buffer, 'buffer.txt'),
-                (self.peek, 'peek.txt'),
-                (self.in_play, 'in_play.txt')):
+        for pile, filename in self.filenames:
             self._save_pile(pile, dirname, filename)
         for player in self.players:
             self._save_pile(
-                player.hand, dirname, 'player_%s_hand.txt' % player.name)
+                player.hand, dirname,
+                'player_%s_hand.txt' % player.name.lower())
         
     def _save_pile(self, pile, dirname, filename):
         with open(os.path.join(dirname, filename), 'w') as f:
@@ -179,7 +211,7 @@ class Game:
     def get_player(self, name):
         assert isinstance(name, str)
         for player in self.players:
-            if player.name == name:
+            if player.name.lower() == name.lower():
                 return player
         raise NotAPlayerError()
 
@@ -208,7 +240,6 @@ def run_test_game():
     assert len(iguana.hand) == 4
     assert len(tiger.hand) == 4
     game.buffer.fill_from(game.deck)
-    print(game.buffer)
     assert len(game.buffer) == 5
     assert len(game.deck) == deck_size - 8 - 5
     card_1 = game.buffer[0]
@@ -236,9 +267,6 @@ def run_test_game():
     if os.path.exists('test-save'):
         shutil.rmtree('test-save')
     game.save('test-save')
-
-    iguana.take(10)
-    print(iguana.hand)
 
 
 if __name__ == '__main__':
