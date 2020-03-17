@@ -1,0 +1,4 @@
+[TRONDHEIM<->TROMSØ 6 pts]
+[OSLO<->BERGEN 4 pts]
+[UMEA<->MURMANSK 13 pts]
+[KOPENHAVN<->KIRUNA 14 pts]

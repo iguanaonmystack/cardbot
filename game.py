@@ -227,7 +227,7 @@ def run_test_game():
     sys.excepthook = info
 
     game = Game()
-    game.load('default')
+    game.load('test-load')
     random.shuffle(game.deck)
     iguana = Player('Iguana', game)
     tiger = Player('Tiger', game)
