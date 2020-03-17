@@ -37,6 +37,25 @@ python3 ircbot.py local.ini
 
 Each bot currently controls one and only one game (though you still have to start it with 'new' or 'load'; see below.)
 
+You will also need a `default` savegame which is used to initialise new games. Create a directory called `state/default` and inside place two text files, `deck.txt` and `tickets.txt`. These contain the two main decks of cards, with one named card per line. Example:
+
+`deck.txt`
+```
+RED
+RED
+RED
+ORANGE
+ORANGE
+LOCOMOTIVE
+```
+
+`tickets.txt`
+```
+[EARTH<->MOON 100 pts]
+[MARS<->VENUS 1138 pts]
+[IO<->EUROPA 666 pts]
+```
+
 ### Model
 
 The game is played using various actions that moves cards between various _piles_.
