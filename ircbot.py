@@ -29,9 +29,9 @@ class IRCUser:
 
 class Cardbot(namesircclient.NamesIRCClient):
 
-    def __init__(self, dealer, mainchannel):
+    def __init__(self, nickname, dealer, mainchannel):
         super().__init__()
-        self.nickname = "TrainGame"
+        self.nickname = nickname
         self.realname = "this code works??"
         self.dealer = dealer
         self.mainchannel = mainchannel
@@ -319,12 +319,13 @@ class Cardbot(namesircclient.NamesIRCClient):
 
 
 class CardbotFactory(protocol.ClientFactory):
-    def __init__(self, channel='#cardgame', dealer='Iguana'):
+    def __init__(self, nickname, channel='#cardgame', dealer='Iguana'):
+        self.nick = nickname
         self.mainchannel = channel
         self.original_dealer = dealer
 
     def buildProtocol(self, addr):
-        protocol = Cardbot(self.original_dealer, self.mainchannel)
+        protocol = Cardbot(self.nick, self.original_dealer, self.mainchannel)
         protocol.factory = self
         return protocol
 
@@ -344,6 +345,7 @@ if __name__ == '__main__':
 
     network = config.get('global', 'network')
     channel = config.get('global', 'channel')
+    nick = config.get('global', 'nickname')
     dealer = config.get('global', 'dealer')
-    reactor.connectTCP(network, 6667, CardbotFactory(channel, dealer))
+    reactor.connectTCP(network, 6667, CardbotFactory(nick, channel, dealer))
     reactor.run()
