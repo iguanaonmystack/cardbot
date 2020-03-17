@@ -4,6 +4,39 @@ A virtual play area for train-based card play.
 
 The bot is controlled by players within an IRC channel and in private messages (PMs) to individual players.
 
+### Installation and running
+
+Optionally create and activate a new virtualenv with the following line in the shell:
+
+```
+virtualenv -p python3 venv
+source venv/bin/activate
+```
+
+Install dependencies using pip:
+
+```
+pip3 install -r requirements.txt
+```
+
+Copy the example `config.ini` to another file (eg `local.ini`) and edit it for your settings (dealer is currently ignored):
+
+```
+[global]
+network=irc.example.com
+channel=#cardgame
+nickname=BotNick
+dealer=DealerNick
+```
+
+Finally, run the bot. It will connect to the given IRC network and join the given channel.
+
+```
+python3 ircbot.py local.ini
+```
+
+Each bot currently controls one and only one game (though you still have to start it with 'new' or 'load'; see below.)
+
 ### Model
 
 The game is played using various actions that moves cards between various _piles_.
