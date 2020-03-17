@@ -187,7 +187,7 @@ class Game:
 
     def _load_pile(self, pile, dirname, filename):
         with open(os.path.join(dirname, filename)) as f:
-            cards = [line.strip() for line in f]
+            cards = [line.strip() for line in f if line.strip()]
         pile.load(cards)
 
     def save(self, gamename):
