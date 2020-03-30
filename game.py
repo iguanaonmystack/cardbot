@@ -112,8 +112,8 @@ class Buffer(Pile):
 
 
 class Player:
-    def __init__(self, name, game):
-        self.name = name
+    def __init__(self, id_, game):
+        self.id_ = id_
         self.game = game
         self.game.players.append(self)
         self.hand = Pile(open_play=True)
@@ -139,7 +139,7 @@ class Player:
             self.hand.pop(i)
 
     def __str__(self):
-        return str(self.name)
+        return str(self.id_)
 
 
 class Game:
@@ -178,11 +178,11 @@ class Game:
             filename_glob = "player_*_%s.txt" % (player_pile,)
             for path in glob.glob(os.path.join(dirname, filename_glob)):
                 filename = os.path.split(path)[1]
-                playername = filename.split('_', 1)[1].rsplit('_', 1)[0]
+                playerid = filename.split('_', 1)[1].rsplit('_', 1)[0]
                 try:
-                    player = self.get_player(playername)
+                    player = self.get_player_by_id(playerid)
                 except NotAPlayerError:
-                    player = Player(playername, self)
+                    player = Player(playerid, self)
                 self._load_pile(getattr(player, player_pile), dirname, filename)
 
     def _load_pile(self, pile, dirname, filename):
@@ -201,17 +201,22 @@ class Game:
         for player in self.players:
             self._save_pile(
                 player.hand, dirname,
-                'player_%s_hand.txt' % player.name.lower())
+                'player_%s_hand.txt' % player.id_)
         
     def _save_pile(self, pile, dirname, filename):
         with open(os.path.join(dirname, filename), 'w') as f:
             for card in pile:
                 print(str(card), file=f)
 
-    def get_player(self, name):
-        assert isinstance(name, str)
+    def get_player(self, remote_user):
+        assert callable(getattr(remote_user, 'get_id', None))
+        id_ = remote_user.get_id()
+        return self.get_player_by_id(id_)
+
+    def get_player_by_id(self, id_):
+        assert isinstance(id_, str)
         for player in self.players:
-            if player.name.lower() == name.lower():
+            if player.id_ == id_:
                 return player
         raise NotAPlayerError()
 
@@ -231,8 +236,8 @@ def run_test_game():
     random.shuffle(game.deck)
     iguana = Player('Iguana', game)
     tiger = Player('Tiger', game)
-    assert iguana.name == 'Iguana'
-    assert tiger.name == 'Tiger'
+    assert iguana.id_ == 'Iguana'
+    assert tiger.id_ == 'Tiger'
     deck_size = len(game.deck)
     iguana.take(4)
     tiger.take(4)
