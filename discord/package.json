@@ -1,0 +1,11 @@
+{
+    "name": "TrainGame",
+    "version": "1.0.0",
+    "description": "Train? Game?",
+    "main": "bot.js",
+    "author": "Iguana",
+    "dependencies": {
+        "discord.js": "^12.1.1",
+        "dotenv": "^8.2.0"
+    }
+}
