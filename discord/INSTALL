@@ -1,0 +1,7 @@
+Uses https://github.com/fridgerator/PyNode.
+
+* Create and activate Python virtualenv (or use the same one as installed for the regular IRC version)
+* Install gyp-next (or perhaps plain gyp): git clone https://github.com/nodejs/gyp-next; cd gyp-next; pip install -e .
+* npm install @fridgerator/pynode
+* `node testjs.js` should print "success!"
+
