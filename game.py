@@ -143,8 +143,8 @@ class Player:
 
 
 class Game:
-    def __init__(self):
-        self.savedir = 'state'
+    def __init__(self, savedir='state'):
+        self.savedir = savedir
         self.discard = Pile()
         self.old_tickets = Pile()
         self.deck = Pile(auto_replenish_from=self.discard)

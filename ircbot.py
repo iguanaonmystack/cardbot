@@ -33,7 +33,7 @@ class IRCUser:
 
 class Cardbot(namesircclient.NamesIRCClient):
 
-    def __init__(self, nickname, dealer, mainchannel):
+    def __init__(self, nickname, dealer, mainchannel, savedir):
         super().__init__()
         self.nickname = nickname
         self.realname = "this code works??"
@@ -41,7 +41,7 @@ class Cardbot(namesircclient.NamesIRCClient):
         self.mainchannel = mainchannel
         self.players = []
         self.helpURL = "http://example.com/projects/cardbot.shtml"
-        self.parser = cmdparser.Parser(self.send, self.get_users)
+        self.parser = cmdparser.Parser(self.send, self.get_users, savedir)
         self.users = []
         self.require_mention = False
 
@@ -136,13 +136,14 @@ class Cardbot(namesircclient.NamesIRCClient):
 
 
 class CardbotFactory(protocol.ClientFactory):
-    def __init__(self, nickname, channel='#cardgame', dealer='Iguana'):
+    def __init__(self, nickname, channel='#cardgame', dealer='Iguana', savedir='./state'):
         self.nick = nickname
         self.mainchannel = channel
         self.original_dealer = dealer
+        self.savedir = savedir
 
     def buildProtocol(self, addr):
-        protocol = Cardbot(self.nick, self.original_dealer, self.mainchannel)
+        protocol = Cardbot(self.nick, self.original_dealer, self.mainchannel, self.savedir)
         protocol.factory = self
         return protocol
 
@@ -164,5 +165,8 @@ if __name__ == '__main__':
     channel = config.get('global', 'channel')
     nick = config.get('global', 'nickname')
     dealer = config.get('global', 'dealer')
-    reactor.connectTCP(network, 6667, CardbotFactory(nick, channel, dealer))
+    savedir = config.get('global', 'savedir')
+    reactor.connectTCP(
+        network, 6667,
+        CardbotFactory(nick, channel, dealer, savedir))
     reactor.run()

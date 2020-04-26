@@ -2,11 +2,24 @@ import random
 
 import game
 
+def test(s, args):
+    assert isinstance(args, tuple)
+    print('test function: s='+repr(s)+"; args="+repr( args))
+    print(s % args)
+    print(str.__mod__(s, args))
+    for arg in args:
+        print(repr(arg))
+
+def is_tuple(o):
+    print('checking is tuple ' + repr(o))
+    return isinstance(o, tuple)
+
 class Parser:
-    def __init__(self, send_function, get_names_function):
+    def __init__(self, send_function, get_names_function, savedir):
         self.send = send_function
         self.get_names = get_names_function
         self.game = None
+        self.savedir = savedir
 
     def parse(self, sender, origin, params):
         '''Parse a game command.
@@ -22,7 +35,6 @@ class Parser:
         Returns nothing but often calls the send_function provided to __init__
         to provide feedback or the results of the command.
         '''
-        assert callable(getattr(sender, 'get_id', None))
         assert origin in ('channel', 'direct')
 
         if origin == 'direct':
@@ -34,6 +46,7 @@ class Parser:
                 'play': self.play_cards,
                 'unplay': self.unplay,
                 'show': self.show_pile,
+                'beep': self.beep,
             }.get(command, self.unknown_command)
             command_function(params, sender, sender)
 
@@ -56,6 +69,7 @@ class Parser:
                 'save': self.save_game,
                 'load': self.load_game,
                 'debug': self.enable_debug,
+                'beep': self.beep,
             }.get(command, self.unknown_command)
             command_function(params, sender, 'channel')
 
@@ -70,7 +84,7 @@ class Parser:
         epdb.serve()
 
     def new_game(self, params, sender, destination):
-        self.game = game.Game()
+        self.game = game.Game(savedir=self.savedir)
         self.game.load('default')
         random.shuffle(self.game.deck)
         random.shuffle(self.game.tickets)
@@ -81,7 +95,8 @@ class Parser:
         for user in remote_users:
             game.Player(user.get_id(), self.game)
         self.send('channel',
-                  "New game with %s",
+                  "New game with %d players: %s",
+                  len(self.game.players),
                   ', '.join(str(p) for p in self.game.players))
 
     def load_game(self, params, sender, destination):
@@ -237,4 +252,8 @@ class Parser:
         self.game.peek.take_from(self.game.deck, count)
         self.send('channel', "Peek: %s" % (self.game.peek,))
 
+    def beep(self, params, sender, destination):
+        '''"beep" -- boop'''
+        print("beeping: %r, %r, %r", params, sender, destination)
+        self.send(destination, "boop")
 

@@ -1,4 +1,4 @@
-Uses https://github.com/fridgerator/PyNode.
+Uses https://github.com/fridgerator/PyNode, at commit 6e263ad at time of writing.
 
 * Create and activate Python virtualenv (or use the same one as installed for the regular IRC version)
 * Install gyp-next (or perhaps plain gyp): git clone https://github.com/nodejs/gyp-next; cd gyp-next; pip install -e .

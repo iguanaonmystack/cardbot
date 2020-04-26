@@ -5,7 +5,7 @@
     "main": "bot.js",
     "author": "Iguana",
     "dependencies": {
-        "@fridgerator/pynode": "^0.4.6",
+        "@fridgerator/pynode": "file:../../PyNode",
         "discord.js": "^12.1.1",
         "dotenv": "^8.2.0"
     }
