@@ -1,3 +1,5 @@
+**(Note: this branch has now moved to its own repository: https://github.com/iguanaonmystack/traingame-bot )**
+
 # TrainGame IRC Bot
 
 A virtual play area for train-based card play.
